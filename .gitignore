@@ -26,3 +26,5 @@ env/
 # Dotfiles (local notes, env files, editor/tool config, etc.)
 .*
 !.gitignore
+!.github/
+!.github/**

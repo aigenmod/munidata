@@ -1,0 +1,41 @@
+name: Daily data pull
+
+on:
+  schedule:
+    # 11:00 UTC = 7:00am US Eastern during EDT (Mar-Nov).
+    # During EST (Nov-Mar) this runs at 6:00am ET instead - cron has no DST awareness.
+    - cron: "0 11 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Fetch VMATX / FTMA daily EOD
+        run: python src/fetch-VMATX_yf.py
+
+      - name: Fetch FRED rate series
+        run: python src/fetch_DFF.py --years 30
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No data changes, nothing to commit."
+          else
+            git commit -m "Daily data pull: $(date -u +%Y-%m-%d)"
+            git push
+          fi
