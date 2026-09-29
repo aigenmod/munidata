@@ -2,13 +2,34 @@ name: Daily data pull
 
 on:
   schedule:
-    # 11:00 UTC = 7:00am US Eastern during EDT (Mar-Nov).
-    # During EST (Nov-Mar) this runs at 6:00am ET instead - cron has no DST awareness.
-    - cron: "0 11 * * *"
+    # 12:23 UTC = 8:23am EDT / 7:23am EST, Mon-Sat.
+    #
+    # Why this time. The previous 11:00 UTC schedule was observed landing at
+    # 15:00 UTC (11:00 ET) - GitHub queues scheduled jobs and on-the-hour
+    # crons are the most contended slot, so a run intended for before the
+    # open arrived 90 minutes INTO the session and committed a partial FTMA
+    # bar. An off-the-hour minute is materially less likely to be delayed.
+    #
+    # Running the morning AFTER a session means every input is final:
+    #   FTMA close   settles 16:00 ET the prior day
+    #   VMATX NAV    strikes 16:00 ET, publishes ~18:00 ET the prior day
+    #   DFF          published by the NY Fed ~09:00 ET, so it still trails
+    #                by one business day no matter when we run
+    # Mon-Sat covers Fri-Thu sessions; Saturday's run picks up Friday.
+    #
+    # src/fetch-VMATX_yf.py also drops unsettled bars on its own, so a
+    # delayed run degrades to "no new row" rather than to a bad row.
+    - cron: "23 12 * * 1-6"
   workflow_dispatch: {}
 
 permissions:
   contents: write
+
+concurrency:
+  # A delayed schedule plus a manual dispatch can otherwise race and both
+  # push to main; the loser fails on a non-fast-forward.
+  group: daily-pull
+  cancel-in-progress: false
 
 jobs:
   pull:
@@ -19,6 +40,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - run: pip install -r requirements.txt
 
@@ -27,6 +49,20 @@ jobs:
 
       - name: Fetch FRED rate series
         run: python src/fetch_DFF.py --years 30
+
+      # Analysis is a separate step so a fetch failure does not leave the
+      # repo with a report describing data that was never written.
+      - name: Analyse
+        run: python src/analyze.py
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f data/analysis/REPORT.md ]; then
+            cat data/analysis/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Commit updated data
         run: |
@@ -37,5 +73,7 @@ jobs:
             echo "No data changes, nothing to commit."
           else
             git commit -m "Daily data pull: $(date -u +%Y-%m-%d)"
+            # Re-sync before pushing: a delayed run can find main advanced.
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
             git push
           fi

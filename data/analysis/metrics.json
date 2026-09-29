@@ -1,0 +1,98 @@
+{
+  "run_utc": "2026-09-29T15:10:10+00:00",
+  "sample": {
+    "start": "2025-11-11",
+    "end": "2026-09-28",
+    "n": 220
+  },
+  "models": {
+    "level_trend": {
+      "beta": [
+        -0.9782509673300841,
+        1.2368157397633177,
+        -0.0004789303804536708
+      ],
+      "se": [
+        0.13663728006470857,
+        0.015041936175838112,
+        2.523610743655718e-05
+      ],
+      "r2": 0.9813708964860068,
+      "rmse": 0.020546761327370044,
+      "dw": 0.8795995795549144,
+      "n": 220
+    },
+    "level_plain": {
+      "beta": [
+        -2.294915329836444,
+        1.3774192900743258
+      ],
+      "se": [
+        0.19153404075917418,
+        0.021300441270497253
+      ],
+      "r2": 0.9504514108436082,
+      "rmse": 0.033509121691059275,
+      "dw": 0.40493628129495,
+      "n": 220
+    },
+    "returns": {
+      "beta": [
+        -0.0001794195549128663,
+        0.6469184775457725
+      ],
+      "se": [
+        0.00010503959632046342,
+        0.041481517201278746
+      ],
+      "r2": 0.5284809610599521,
+      "rmse": 0.0015366958832326507,
+      "dw": 2.1453723461376524,
+      "n": 219
+    },
+    "returns_corr": 0.7269669600882503
+  },
+  "rolling": {
+    "window": 60,
+    "latest": 0.8083637738800141,
+    "mean": 0.6800420621080365,
+    "min": 0.38924901552102054,
+    "max": 0.8083637738800141,
+    "latest_date": "2026-09-28"
+  },
+  "cointegration": {
+    "available": true,
+    "p_constant": 0.24345323699508664,
+    "p_trend": 0.00027397662937163363,
+    "adf_vmatx_p": 1.0,
+    "adf_ftma_p": 1.0
+  },
+  "drift": {
+    "latest_residual": -0.025060071933262762,
+    "z_score": -1.270498779240638,
+    "window": 120,
+    "alert": false
+  },
+  "nowcast": {
+    "skipped": true,
+    "target_date": "2026-09-29",
+    "reason": "FTMA bar looks unsettled (volume 337,913 is not a round lot); no prediction logged"
+  },
+  "nowcast_score": {
+    "scored": 0,
+    "note": "no predictions have resolved yet \u2014 needs one more run after the next NAV publishes"
+  },
+  "integrity": {
+    "ftma_last": "2026-09-29",
+    "ftma_lag_days": 0,
+    "vmatx_last": "2026-09-28",
+    "vmatx_lag_days": 1,
+    "dff_last": "2026-09-25",
+    "dff_lag_days": 4,
+    "volume_vs_median": 2.5,
+    "ftma_missing_bdays": 10,
+    "flags": [
+      "FTMA 2026-09-29 volume 337,913 is not a round lot \u2014 possible partial/in-session bar"
+    ]
+  }
+}

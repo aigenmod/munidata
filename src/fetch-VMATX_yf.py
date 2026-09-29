@@ -34,15 +34,67 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:                                    # py<3.9
+    ZoneInfo = None
+
 yf.config.debug.hide_exceptions = False  # let fetch failures raise, don't just log
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 
+ET = "America/New_York"
+# US equity close is 16:00 ET; give the consolidated tape time to settle.
+SESSION_SETTLED_HOUR_ET = 16
+SESSION_SETTLED_MINUTE_ET = 15
+
 TICKERS = ["FTMA", "VMATX"]
 INCEPTION = {"FTMA": "2025-11-10", "VMATX": "1998-12-09"}
 
 COLS = ["date", "open", "high", "low", "close", "volume"]
+
+
+# ------------------------------------------------- partial-bar protection
+def drop_unsettled_bar(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """Remove today's bar when the session has not finished.
+
+    Why this exists: yfinance happily returns an in-progress bar for the
+    current session. Its close is simply the last trade so far, and its
+    volume is a partial count. Committing that to the repo writes a number
+    that is NOT the closing price into a column every downstream model
+    reads as one. It self-heals on the next full re-download, but any
+    analysis running in the same job consumes the bad value first.
+
+    Detected on time, not on the data, because a thin ETF can legitimately
+    post a tiny real volume. The round-lot check below is advisory only.
+    """
+    if df.empty or ZoneInfo is None:
+        return df
+
+    now_et = datetime.now(ZoneInfo(ET))
+    cutoff = now_et.replace(hour=SESSION_SETTLED_HOUR_ET,
+                            minute=SESSION_SETTLED_MINUTE_ET,
+                            second=0, microsecond=0)
+    today = now_et.date()
+
+    last = df["date"].iloc[-1].date()
+    if last == today and now_et < cutoff:
+        vol = df["volume"].iloc[-1]
+        px = df["close"].iloc[-1]
+        print(f"  ! {ticker}: dropping {last} — session still open "
+              f"({now_et:%H:%M} ET, settles {SESSION_SETTLED_HOUR_ET}:"
+              f"{SESSION_SETTLED_MINUTE_ET:02d}). "
+              f"Partial bar was close={px:.4f} volume={vol:.0f}",
+              file=sys.stderr)
+        return df.iloc[:-1].reset_index(drop=True)
+
+    # Advisory: settled Yahoo EOD volumes are reported in round lots. A
+    # non-round figure on the newest bar is a hint it is still live.
+    if last == today and len(df) and df["volume"].iloc[-1] % 100 != 0:
+        print(f"  ~ {ticker}: {last} volume {df['volume'].iloc[-1]:.0f} is not a "
+              f"round lot; bar may still be settling", file=sys.stderr)
+    return df
 
 
 # ---------------------------------------------------------------- fetch
@@ -96,7 +148,8 @@ def load(ticker: str, start: str | date, end: str | date | None = None,
     out = out.dropna(subset=["close"])
     out = out[out["close"] > 0]
     out = out.drop_duplicates(subset="date", keep="last").sort_values("date")
-    return out.reset_index(drop=True)
+    out = out.reset_index(drop=True)
+    return drop_unsettled_bar(out, ticker)
 
 
 # ------------------------------------------------------- existing tables
