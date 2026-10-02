@@ -2,9 +2,11 @@ name: Daily data pull
 
 on:
   schedule:
-    # 11:00 UTC = 7:00am US Eastern during EDT (Mar-Nov).
-    # During EST (Nov-Mar) this runs at 6:00am ET instead - cron has no DST awareness.
-    - cron: "0 11 * * *"
+    # 08:00 UTC = 4:00am US Eastern during EDT (Mar-Nov).
+    # During EST (Nov-Mar) this runs at 3:00am ET instead - cron has no DST awareness.
+    # Note: GitHub Actions `schedule` is best-effort and commonly fires late by
+    # minutes to hours - this sets the target, not a guaranteed start time.
+    - cron: "0 8 * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -14,6 +16,12 @@ jobs:
   pull:
     runs-on: ubuntu-latest
     steps:
+      - name: Record start time
+        run: |
+          echo "START_EPOCH=$(date -u +%s)" >> "$GITHUB_ENV"
+          echo "START_HUMAN=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_ENV"
+          echo "Run started: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -39,3 +47,14 @@ jobs:
             git commit -m "Daily data pull: $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      - name: Print run timing
+        if: always()
+        run: |
+          end_epoch=$(date -u +%s)
+          end_human=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          elapsed=$((end_epoch - START_EPOCH))
+          printf "Run started:  %s\n" "$START_HUMAN"
+          printf "Run finished: %s\n" "$end_human"
+          printf "Duration:     %02d:%02d:%02d (%ss)\n" \
+            $((elapsed/3600)) $((elapsed%3600/60)) $((elapsed%60)) "$elapsed"
