@@ -1,0 +1,2 @@
+target_date,run_at_et,last_close,ftma_prev_close,ftma_input,ftma_note,tr_ecm,raw_ecm,tr_level,raw_level,tr_ecm_lo95,tr_ecm_hi95,raw_ecm_lo95,raw_ecm_hi95,notes,actual,err_tr_ecm,err_raw_ecm,err_tr_level,err_raw_level
+2026-10-02,2026-10-02 14:29,9.510000228881836,8.520000457763672,8.56734417760095,"mean of 43 5-min closes 09:30-14:05 ET, volume 510,639",9.5489,9.5393,9.6119,9.5133,9.5207,9.5773,9.5094,9.5692,VMATX 2026-09 distribution not on record; assumed $0.0317,,,,,
