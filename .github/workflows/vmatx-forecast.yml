@@ -1,0 +1,57 @@
+name: VMATX forecast
+
+on:
+  schedule:
+    # 15:15 UTC = 11:15am ET during EDT (Mar-Nov), 10:15am ET during EST.
+    # Weekdays only. The daily data pull (08:00 UTC) has already added
+    # yesterday's closes by then. GitHub cron is best-effort and can start late.
+    - cron: "15 15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      ftma_now:
+        description: "Optional FTMA input price (skips the intraday fetch)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: munidata-commits
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Train models (refreshes distributions from Yahoo)
+        run: python src/train_vmatx_models.py
+
+      - name: Forecast today's VMATX NAV
+        run: |
+          if [ -n "${{ github.event.inputs.ftma_now }}" ]; then
+            python src/forecast_vmatx.py --ftma-now "${{ github.event.inputs.ftma_now }}"
+          else
+            python src/forecast_vmatx.py
+          fi
+
+      - name: Commit models and forecasts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/models data/forecasts data/vmatx_ftma_distributions.csv
+          if git diff --cached --quiet; then
+            echo "Nothing new to commit."
+          else
+            git commit -m "VMATX forecast: $(TZ=America/New_York date +%Y-%m-%d)"
+            git pull --rebase --autostash
+            git push
+          fi

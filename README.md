@@ -48,6 +48,55 @@ movement gets represented at all.
 | `daily_features(bars)` | Collapses one session's hourly bars into one row: OHLC, a `vwap_proxy` (volume-weighted typical price), and staleness of the closing print (how many hours since the last bar that actually traded). |
 | `main(argv)` | CLI entry point. Fetches hourly bars, derives the daily feature table, writes both CSVs, and prints liquidity/staleness diagnostics (FTMA trades thinly enough that zero-volume hourly bars are common). |
 
+## Forecasting VMATX from FTMA intraday
+
+Forecasts today's VMATX NAV before its 16:00 strike, using FTMA's intraday
+trading as the signal. This is the payoff of pulling FTMA in at all: FTMA
+moves all day, VMATX prints once, so FTMA's morning move is an estimate of
+where VMATX will land.
+
+| Script | Purpose |
+|---|---|
+| `src/vmatx_models.py` | Model library: total-return construction, fitting, forecasting. Imported by the two scripts below; not run directly. |
+| `src/train_vmatx_models.py` | Refreshes FTMA/VMATX distributions from Yahoo (`data/vmatx_ftma_distributions.csv`), fits all four models, writes `data/models/vmatx_models.json` with coefficients and fit diagnostics. |
+| `src/forecast_vmatx.py` | Averages today's FTMA 5‑minute closes from 09:30 ET, forecasts with all four models, appends to `data/forecasts/vmatx_forecasts.csv` (and scores past rows once the actual NAV arrives), writes `latest.json` and a dated chart. |
+| `.github/workflows/vmatx-forecast.yml` | Runs training + forecast on weekdays at 15:15 UTC and commits the results. |
+
+### The four models
+
+| Key | Role | Model | Basis |
+|---|---|---|---|
+| `tr_ecm` | final, primary | returns (error-correction) | total return |
+| `raw_ecm` | final | returns (error-correction) | raw closes |
+| `tr_level` | comparison | level regression | total return |
+| `raw_level` | comparison | level regression | raw closes |
+
+Level regression is `log V = a + b·log F`, with gap `u = log V − (a + b·log F)`.
+The returns model is `Δlog V_t = c + h·Δlog F_t + g·u_(t−1)` — today's VMATX move
+from today's FTMA move plus a pull back toward the long-run relationship.
+
+**Total-return basis.** FTMA is an ETF whose price drops on its ex-date, so each
+distribution is added back on that date. VMATX is a daily-accrual fund whose NAV
+does *not* drop on payment, so its monthly distribution is spread evenly over
+that month's business days. A total-return forecast is converted back to
+published NAV by subtracting one day's accrual.
+
+**Caveats.**
+- Neither basis passes an Engle-Granger cointegration test on the current
+  sample (p ≈ 0.25 raw, 0.91 total-return), so the level regressions are
+  reported for comparison, not as forecasts. Use the `_ecm` rows.
+- If Yahoo hasn't posted VMATX's latest month-end distribution yet, the mean of
+  the last three is assumed; this is printed as a NOTE and recorded in the
+  forecast log's `notes` column.
+
+### Run locally
+
+```
+pip install -r requirements.txt
+python src/train_vmatx_models.py      # fit and save; --no-fetch reuses the saved distributions
+python src/forecast_vmatx.py          # or --ftma-now 8.59, --morning-end 11:00, --no-chart
+```
+
 ## Reference: rate series (FRED)
 
 | Series | Name | What it measures | Frequency | Official reference |

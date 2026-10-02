@@ -1,2 +1,5 @@
 pandas
 yfinance
+numpy
+statsmodels
+matplotlib
