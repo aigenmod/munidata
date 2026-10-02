@@ -12,6 +12,13 @@ on:
 permissions:
   contents: write
 
+# Shared with vmatx-forecast.yml so the two scheduled jobs never push at the
+# same time. cancel-in-progress: false queues the later run instead of
+# killing it - a dropped data pull would leave a gap in the CSVs.
+concurrency:
+  group: munidata-commits
+  cancel-in-progress: false
+
 jobs:
   pull:
     runs-on: ubuntu-latest
@@ -45,6 +52,7 @@ jobs:
             echo "No data changes, nothing to commit."
           else
             git commit -m "Daily data pull: $(date -u +%Y-%m-%d)"
+            git pull --rebase --autostash
             git push
           fi
 
